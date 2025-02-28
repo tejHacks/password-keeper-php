@@ -1,24 +1,53 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 session_start();
 require '../config.php';
+if (!defined('ENCRYPTION_KEY')) {
+    die("ENCRYPTION_KEY is not defined! Check config.php");
+}
 
-// Check if user is logged in
-if (!isset($_SESSION['user'])) {
-    header("Location: login.php");
+
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['username'])) {
+    header("Location: ../login.php");
     exit;
 }
 
-$username = $_SESSION['user'];
+$user_id = $_SESSION['user_id'];
+$username = $_SESSION['username'];
 
-// Fetch user's saved passwords
+
+
+// Fetch user's saved passwords with IV
 try {
-    $stmt = $conn->prepare("SELECT * FROM passwords WHERE `username` = :user");
-    $stmt->bindParam(":user", $username);
-    $stmt->execute();
-    $passwords = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmtUser = $conn->prepare("SELECT id, username, email FROM users WHERE id = :user_id LIMIT 1");
+    $stmtUser->bindParam(":user_id", $user_id);
+    $stmtUser->execute();
+    $user = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        die("User not found!");
+    }
+
+    // Ensure ENCRYPTION_KEY is defined
+if (!defined('ENCRYPTION_KEY')) {
+    die("Encryption key is missing!");
+}
+
+function decryptPassword($encryptedPassword, $iv) {
+    if (!$encryptedPassword || !$iv) {
+        return '[Decryption Failed]';
+    }
+
+    $key = hex2bin(ENCRYPTION_KEY);
+    if (!$key) {
+        die("Encryption key conversion failed!");
+    }
+    
+  
+    $decodedEncrypted = base64_decode($encryptedPassword);
+    $decodedIV = base64_decode($iv);
+
+    return openssl_decrypt($decodedEncrypted, 'aes-256-cbc', $key, 0, $decodedIV) ?: '[Decryption Failed]';
+}
 } catch (PDOException $e) {
     die("Database error: " . $e->getMessage());
 }
@@ -32,6 +61,7 @@ try {
     <title>Dashboard - Password Monkey</title>
     <link rel="stylesheet" href="../assets/bootstrap-5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../assets/boxicons/css/boxicons.min.css">
+  
     <style>
         body {
             background-color: #f8f9fa;
@@ -61,7 +91,7 @@ try {
             background-color: #1e1e1e;
             color: white;
         }
-        .dark-mode .btn {
+        .dark-mode #darkBtn {
             background-color: #007bff;
             color: white;
         }
@@ -76,67 +106,122 @@ try {
     </style>
 </head>
 <body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
-        <div class="d-flex justify-content-between align-items-center">
-            <h2>Password Manager</h2>
-            <button class="btn btn-outline-secondary" id="toggleDarkMode">🌙 Dark Mode</button>
-        </div>
-
-        <div class="card mt-3">
-            <h4 class="mb-3">Your Saved Passwords</h4>
-
-            <?php if (empty($passwords)): ?>
-                <div class="empty-state">
-                    <img src="../assets/images/empty.gif" alt="No data">
-                    <h5 class="mt-3">No passwords saved yet</h5>
-                    <p>Click below to add a new password.</p>
-                    <a href="add_password.php" class="btn btn-primary">+ Add New Password</a>
-                </div>
-            <?php else: ?>
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Website</th>
-                            <th>Password</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($passwords as $pass): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($pass['website']) ?></td>
-                            <td>
-                                <span id="pass-<?= $pass['id'] ?>"><?= htmlspecialchars($pass['password']) ?></span>
-                                <i class="bx bx-copy copy-btn" onclick="copyToClipboard('pass-<?= $pass['id'] ?>')"></i>
-                            </td>
-                            <td>
-                                <a href="edit.php?id=<?= $pass['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
-                                <a href="delete.php?id=<?= $pass['id'] ?>" class="btn btn-sm btn-danger">Delete</a>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <a href="export.php" class="btn btn-success">Export to CSV</a>
-            <?php endif; ?>
-            <a href="logout.php" class="btn btn-danger">Logout</a>
+        <a class="navbar-brand fw-bold" href="#">Password Monkey 🐒</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="dashboard.php">🏠 Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="export.php">📂 Export</a>
+                </li>
+                <li class="nav-item">
+                    <button id="darkBtn" class="btn btn-sm btn-outline-light">🌙 Dark Mode</button>
+                </li>
+                <li class="nav-item">
+                    <a class="btn btn-danger btn-sm ms-2" href="logout.php">🚪 Logout</a>
+                </li>
+            </ul>
         </div>
     </div>
+</nav>
 
-    <script>
-        function copyToClipboard(id) {
-            var text = document.getElementById(id).innerText;
-            navigator.clipboard.writeText(text).then(() => {
-                alert("Copied to clipboard!");
-            }).catch(err => {
-                console.error('Error copying text: ', err);
-            });
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <h2>Hey, <?= htmlspecialchars($username) ?></h2>
+        <a href="add_password.php" class="btn btn-primary">+ Add New Password</a>
+    </div>
+
+    <div class="card mt-3">
+        <h4 class="mb-3">Your Saved Passwords</h4>
+
+        <?php if (empty($passwords)): ?>
+            <div class="empty-state">
+                <img src="../assets/images/empty.gif" alt="No data">
+                <h5 class="mt-3">No passwords saved yet</h5>
+                <p>Click below to add a new password.</p>
+                <a href="add_password.php" class="btn btn-primary">+ Add New Password</a>
+            </div>
+        <?php else: ?>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Website</th>
+                        <th>Password</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($passwords as $pass): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($pass['website']) ?></td>
+                        <td>
+                            <span class="password-container">
+                                <span class="password-hidden" id="pass-<?= $pass['id'] ?>">********</span>
+                                <span class="password-visible d-none" id="pass-text-<?= $pass['id'] ?>">
+                                    <?= htmlspecialchars(decryptPassword($pass['password'], $pass['iv'])) ?>
+                                </span>
+                                <i class="bx bx-show toggle-password" data-id="<?= $pass['id'] ?>"></i>
+                                <i class="bx bx-copy copy-btn" onclick="copyToClipboard('pass-text-<?= $pass['id'] ?>')"></i>
+                            </span>
+                        </td>
+                        <td>
+                            <a href="edit.php?id=<?= $pass['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
+                            <a href="delete.php?id=<?= $pass['id'] ?>" class="btn btn-sm btn-danger">Delete</a>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <a href="export.php" class="btn btn-success">Export to CSV</a>
+        <?php endif; ?>
+    </div>
+</div>
+
+<script>
+    // Dark mode toggle with persistence
+    document.addEventListener("DOMContentLoaded", function() {
+        if (localStorage.getItem("darkMode") === "enabled") {
+            document.body.classList.add("dark-mode");
         }
 
-        // Dark mode toggle
-        document.getElementById("toggleDarkMode").addEventListener("click", function() {
+        document.getElementById("darkBtn").addEventListener("click", function() {
             document.body.classList.toggle("dark-mode");
+            localStorage.setItem("darkMode", document.body.classList.contains("dark-mode") ? "enabled" : "disabled");
         });
-    </script>
+    });
+
+    // Toggle password visibility
+    document.querySelectorAll(".toggle-password").forEach(btn => {
+        btn.addEventListener("click", function () {
+            let id = this.getAttribute("data-id");
+            let hidden = document.getElementById(`pass-${id}`);
+            let visible = document.getElementById(`pass-text-${id}`);
+
+            hidden.classList.toggle("d-none");
+            visible.classList.toggle("d-none");
+            this.classList.toggle("bx-hide");
+            this.classList.toggle("bx-show");
+        });
+    });
+
+    // Copy to clipboard function
+    function copyToClipboard(id) {
+        var text = document.getElementById(id).innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            alert("Copied to clipboard!");
+        }).catch(err => {
+            console.error('Error copying text: ', err);
+        });
+    }
+</script>
+<script src="../assets/bootstrap-5.3.3/dist/js/bootstrap.bundle.js"></script>
+    <script src="../assets/bootstrap-5.3.3/dist/js/bootstrap.min.js"></script>
+    <script src="../assets/bootstrap-5.3.3/dist/js/bootstrap.min.js"></script>
 </body>
 </html>

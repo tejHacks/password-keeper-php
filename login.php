@@ -18,7 +18,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password_hash'])) {
-                $_SESSION['user'] = $user['username']; // Store session
+                // Store user ID and username in session
+                $_SESSION['user_id'] = $user['id']; // Store user_id
+                $_SESSION['username'] = $user['username']; // Store username
+
                 header("Location: profile/dashboard.php"); // Redirect to dashboard
                 exit;
             } else {
@@ -29,6 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 }
+
 ?>
 
 <!DOCTYPE html>

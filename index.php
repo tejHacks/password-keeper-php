@@ -6,10 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Password Monkey</title>
     <link rel="stylesheet" href="assets/bootstrap-5.3.3/dist/css/bootstrap.min.css">
+   
     <link rel="stylesheet" href="assets/font-awesome/css/font-awesome.css">
     <link rel="stylesheet" href="assets/font-awesome/css/font-awesome.min.css">
     <link rel="stylesheet" href="assets/boxicons/css/boxicons.css">
     <link rel="stylesheet" href="assets/boxicons/css/boxicons.min.css">
+    <script src="assets/bootstrap-5.3.3/dist/js/bootstrap.min.js"></script>
+    <script src="assets/bootstrap-5.3.3/dist/css/bootstrap.min.css"></script>
     <style>
         body {
             background-color: #f8f9fa;
@@ -46,6 +49,7 @@
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link text-light" href="#features">Features</a></li>
                     <li class="nav-item"><a class="nav-link text-light" href="register.php">SignUp</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="login.php">Login</a></li>
                     <li class="nav-item"><a class="nav-link text-light" href="#contact">Contact</a></li>
                     <li class="nav-item"><button id="toggleDarkMode" class="btn btn-outline-primary text-light"><i class="fa fa-moon-o"></i> Dark Mode</button></li>
                 </ul>
