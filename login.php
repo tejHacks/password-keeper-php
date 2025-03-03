@@ -2,7 +2,7 @@
 require 'config.php';
 session_start();
 
-$message = ""; // Store feedback message
+$message = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST['username']);
@@ -12,17 +12,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $message = '<div class="alert alert-danger">Please fill in all fields.</div>';
     } else {
         try {
-            $stmt = $conn->prepare("SELECT * FROM `users` WHERE `username` = :username");
+            $stmt = $conn->prepare("SELECT user_id, username, password FROM users WHERE username = :username");
             $stmt->bindParam(":username", $username);
             $stmt->execute();
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($user && password_verify($password, $user['password_hash'])) {
-                // Store user ID and username in session
-                $_SESSION['user_id'] = $user['id']; // Store user_id
-                $_SESSION['username'] = $user['username']; // Store username
-
-                header("Location: profile/dashboard.php"); // Redirect to dashboard
+            if ($user && password_verify($password, $user['password'])) {
+                $_SESSION['user_id'] = $user['user_id'];
+                $_SESSION['username'] = $user['username'];
+                header("Location: dashboard.php");
                 exit;
             } else {
                 $message = '<div class="alert alert-danger">Invalid username or password.</div>';
@@ -32,7 +30,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 }
-
 ?>
 
 <!DOCTYPE html>
@@ -40,72 +37,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Password Monkey</title>
+    <title>Password Monkey 🐵 - Login</title>
     <link rel="stylesheet" href="assets/bootstrap-5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/boxicons/css/boxicons.min.css">
     <style>
-       
-        .card {
-            background-color: #1e1e1e;
-            border: none;
-        }
-        .form-control {
-            background-color: #2a2a2a;
-            color: white;
-            border: 1px solid #444;
-        }
-        .form-control:focus {
-            border-color: #007bff;
-            box-shadow: none;
-        }
-        .toggle-password {
-           
-    cursor: pointer;
-    position: absolute;
-    right: 15px;
-    top: 69%;
-    transform: translateY(-43%);
-    color: #000000;
-        }
-        .toggle-password:hover {
-            color: grey;
-        }
+        .form-control { max-width: 400px; }
+        .container { max-width: 500px; }
+        .toggle-password { cursor: pointer; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
     </style>
 </head>
 <body>
-    <div class="container d-flex justify-content-center align-items-center" style="height: 100vh;">
-        <div class="card p-4" style="width: 350px;">
-            <h2 class="text-center text-light">Login</h2>
+    <div class="container mt-5">
+        <h2 class="text-center">Password Monkey 🐵</h2>
+        <div class="card p-4 mt-3">
+            <h3 class="text-center">Login</h3>
             <?php echo $message; ?>
             <form method="POST" action="">
                 <div class="mb-3">
-                    <label class="form-label text-light">Username</label>
+                    <label class="form-label">Username</label>
                     <input type="text" name="username" class="form-control" required>
                 </div>
                 <div class="mb-3 position-relative">
-                    <label class="form-label text-light">Password</label>
-                    <input type="password" id="password" name="password" class="form-control" required>
-                    <i class="bx bx-show toggle-password" id="togglePassword"></i>
+                    <label class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password" id="password" name="password" class="form-control" required>
+                        <button type="button" class="btn btn-outline-secondary" onclick="togglePassword()">
+                            <i class="bx bx-show" id="eyeIcon"></i>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Login</button>
             </form>
-            <div class="text-center mt-3">
-                <a href="register.php" class="text-decoration-none text-light">Create an account</a>
-            </div>
+            <a href="register.php" class="btn btn-success w-100 my-2">Create Account</a>
+            <a href="recover.php" class="btn-link d-block text-center">Forgot Password?</a>
         </div>
     </div>
 
     <script>
-        document.getElementById("togglePassword").addEventListener("click", function() {
-            const passwordField = document.getElementById("password");
+        function togglePassword() {
+            let passwordField = document.getElementById("password");
+            let eyeIcon = document.getElementById("eyeIcon");
             if (passwordField.type === "password") {
                 passwordField.type = "text";
-                this.classList.replace("bx-show", "bx-hide");
+                eyeIcon.classList.replace("bx-show", "bx-hide");
             } else {
                 passwordField.type = "password";
-                this.classList.replace("bx-hide", "bx-show");
+                eyeIcon.classList.replace("bx-hide", "bx-show");
             }
-        });
+        }
     </script>
 </body>
 </html>

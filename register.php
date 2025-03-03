@@ -4,27 +4,42 @@ require 'config.php';
 $message = ""; // Store feedback message
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = trim($_POST['username']);
+    $fullname = trim(htmlspecialchars($_POST['fullname']));
+    $username = trim(htmlspecialchars($_POST['username']));
     $password = trim($_POST['password']);
 
-    if (empty($username) || empty($password)) {
+    if (empty($fullname) || empty($username) || empty($password)) {
         $message = '<div class="alert alert-danger">Please fill in all fields.</div>';
     } else {
-        // Hash password before storing
-        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+        // Check if username exists
+        $stmt = $conn->prepare("SELECT user_id FROM users WHERE username = :username");
+        $stmt->bindParam(":username", $username);
+        $stmt->execute();
 
-        try {
-            $stmt = $conn->prepare("INSERT INTO `users` (`username`, `password_hash`) VALUES (:username, :password)");
-            $stmt->bindParam(":username", $username);
-            $stmt->bindParam(":password", $hashedPassword);
+        if ($stmt->rowCount() > 0) {
+            $message = '<div class="alert alert-warning">Username already taken. Choose another.</div>';
+        } else {
+            // Hash password securely
+            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+            
+            // Generate a secure recovery key
+            $recoveryKey = bin2hex(random_bytes(16));
 
-            if ($stmt->execute()) {
-                $message = '<div class="alert alert-success">Registration successful!</div>';
-            } else {
-                $message = '<div class="alert alert-danger">Error: Could not register user.</div>';
+            try {
+                $stmt = $conn->prepare("INSERT INTO users (fullname, username, password, recovery_key) VALUES (:fullname, :username, :password, :recovery_key)");
+                $stmt->bindParam(":fullname", $fullname);
+                $stmt->bindParam(":username", $username);
+                $stmt->bindParam(":password", $hashedPassword);
+                $stmt->bindParam(":recovery_key", $recoveryKey);
+
+                if ($stmt->execute()) {
+                    $message = '<div class="alert alert-success">Registration successful! <a href="login.php">Login here</a>.</div>';
+                } else {
+                    $message = '<div class="alert alert-danger">Error: Could not register user.</div>';
+                }
+            } catch (PDOException $e) {
+                $message = '<div class="alert alert-danger">Error: ' . $e->getMessage() . '</div>';
             }
-        } catch (PDOException $e) {
-            $message = '<div class="alert alert-danger">Error: ' . $e->getMessage() . '</div>';
         }
     }
 }
@@ -35,19 +50,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Password Monkey</title>
+    <title>Password Monkey 🐵 - Signup</title>
     <link rel="stylesheet" href="assets/bootstrap-5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/boxicons/css/boxicons.min.css">
-    
+    <style>
+        .form-control { max-width: 400px; }
+        .container { max-width: 500px; }
+    </style>
+    <style>
+        .form-control { max-width: 400px; }
+        .container { max-width: 500px; }
+        .toggle-password { cursor: pointer; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+    </style>
 </head>
-<body class="dark-mode">
+<body>
     <div class="container mt-5">
-        <h2 class="text-center">Register on Password Monkey</h2>
+        <h2 class="text-center">Password Monkey 🐵</h2>
 
-        <!-- Alert Message -->
         <?php echo $message; ?>
 
-        <form method="POST" action="">
+        <form method="POST" action="" class="card p-4 mt-3">
+            <div class="mb-3">
+                <label class="form-label">Full Name</label>
+                <input type="text" name="fullname" class="form-control" required>
+            </div>
             <div class="mb-3">
                 <label class="form-label">Username</label>
                 <input type="text" name="username" class="form-control" required>
@@ -61,9 +87,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </button>
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Register</button>
+            <button type="submit" class="btn btn-primary w-100">Signup</button>
         </form>
-        <a class="btn btn-success my-3 w-100" href="login.php">Login</a>
+
+        <a href="login.php" class="btn btn-success my-3 w-100">Login</a>
+        <a href="recover.php" class="btn-link d-block text-center">Forgot Password?</a>
     </div>
 
     <script>
