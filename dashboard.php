@@ -7,9 +7,12 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-if (!defined('ENCRYPTION_KEY')) {
-    die("ENCRYPTION_KEY is not defined! Check config.php");
+// Generate CSRF token if it does not exist
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
+
 
 $user_id = $_SESSION['user_id'];
 $stmt = $conn->prepare("SELECT id, site_name, username, password, encryption_key FROM passwords WHERE user_id = :user_id");
@@ -22,6 +25,9 @@ function decryptPassword($encryptedPassword, $encryptionKey) {
     $iv = base64_decode($encryptionKey);
     return openssl_decrypt(base64_decode($encryptedPassword), 'aes-256-cbc', $key, 0, $iv);
 }
+
+// echo var_dump($_SESSION['csrf_token']); // Debugging purpose, remove later!
+
 ?>
 
 
@@ -100,15 +106,17 @@ function decryptPassword($encryptedPassword, $encryptionKey) {
                             </span>
                         </td>
                         <td>
+                            
                             <form action="edit.php" method="POST">
                                 <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+
                                 <button type="submit" class="btn btn-sm btn-warning">Edit</button>
                             </form>
                             
                             <form action="delete.php" method="POST" onsubmit="return confirm('Are you sure?');">
                                 <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </form>
                         </td>
