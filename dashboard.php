@@ -12,8 +12,6 @@ if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-
-
 $user_id = $_SESSION['user_id'];
 $stmt = $conn->prepare("SELECT id, site_name, username, password, encryption_key FROM passwords WHERE user_id = :user_id");
 $stmt->bindParam(":user_id", $user_id);
@@ -23,13 +21,17 @@ $passwords = $stmt->fetchAll(PDO::FETCH_ASSOC);
 function decryptPassword($encryptedPassword, $encryptionKey) {
     $key = hex2bin(ENCRYPTION_KEY);
     $iv = base64_decode($encryptionKey);
-    return openssl_decrypt(base64_decode($encryptedPassword), 'aes-256-cbc', $key, 0, $iv);
+
+    if (!$iv || strlen($iv) !== 16) {
+        return "Decryption Error";
+    }
+
+    $decrypted = openssl_decrypt(base64_decode($encryptedPassword), 'aes-256-cbc', $key, 0, $iv);
+    
+    return $decrypted ?: "Decryption Error";
 }
 
-// echo var_dump($_SESSION['csrf_token']); // Debugging purpose, remove later!
-
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -43,10 +45,8 @@ function decryptPassword($encryptedPassword, $encryptionKey) {
         body { background-color: #f8f9fa; color: #212529; }
         .container { max-width: 800px; margin-top: 50px; }
         .card { padding: 20px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); border-radius: 10px; }
-        .copy-btn { cursor: pointer; color: #007bff; }
-        .copy-btn:hover { color: #0056b3; }
-        .toggle-password { cursor: pointer; color: #007bff; }
-        .toggle-password:hover { color: #0056b3; }
+        .copy-btn, .toggle-password { cursor: pointer; color: #007bff; margin-left: 8px; }
+        .copy-btn:hover, .toggle-password:hover { color: #0056b3; }
     </style>
 </head>
 <body>
@@ -68,7 +68,6 @@ function decryptPassword($encryptedPassword, $encryptionKey) {
 
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mt-3">
-       
         <a href="add_password.php" class="btn btn-primary">+ Add New Password</a>
     </div>
     
@@ -106,16 +105,14 @@ function decryptPassword($encryptedPassword, $encryptionKey) {
                             </span>
                         </td>
                         <td>
-                            
-                            <form action="edit.php" method="POST">
-                                <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                            <form action="edit.php" method="POST" class="d-inline">
+                                <input type="hidden" name="id" value="<?= htmlspecialchars($row['id']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-
                                 <button type="submit" class="btn btn-sm btn-warning">Edit</button>
                             </form>
                             
-                            <form action="delete.php" method="POST" onsubmit="return confirm('Are you sure?');">
-                                <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                            <form action="delete.php" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?');">
+                                <input type="hidden" name="id" value="<?= htmlspecialchars($row['id']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </form>
@@ -137,18 +134,24 @@ document.querySelectorAll('.toggle-password').forEach(item => {
         let hiddenPass = document.getElementById('pass-' + id);
         let visiblePass = document.getElementById('pass-text-' + id);
 
-        if (hiddenPass.classList.contains('d-none')) {
-            hiddenPass.classList.remove('d-none');
-            visiblePass.classList.add('d-none');
-        } else {
+        if (visiblePass.classList.contains('d-none')) {
             hiddenPass.classList.add('d-none');
             visiblePass.classList.remove('d-none');
+        } else {
+            hiddenPass.classList.remove('d-none');
+            visiblePass.classList.add('d-none');
         }
     });
 });
 
 function copyToClipboard(id) {
-    let text = document.getElementById(id).innerText;
+    let textElement = document.getElementById(id);
+    if (textElement.classList.contains('d-none')) {
+        alert('Password is hidden. Click the eye icon to reveal it first.');
+        return;
+    }
+
+    let text = textElement.innerText;
     navigator.clipboard.writeText(text).then(() => alert('Password copied!'));
 }
 </script>
